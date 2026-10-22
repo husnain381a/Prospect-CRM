@@ -1,0 +1,11 @@
+FROM node:24-bookworm-slim
+WORKDIR /app
+COPY package*.json ./
+RUN npm ci --no-audit --no-fund
+COPY --chown=node:node worker ./worker
+COPY --chown=node:node lib ./lib
+COPY --chown=node:node tsconfig.json ./
+ENV NODE_ENV=production PORT=3001
+USER node
+EXPOSE 3001
+CMD ["npx","tsx","worker/index.ts"]

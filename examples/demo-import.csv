@@ -1,0 +1,3 @@
+name,category,address,city,country,timezone,website,email,phone,rating,reviews,source_id,source_url,export_allowed
+Juniper Studio,Design studio,12 Sample Lane,Austin,US,America/Chicago,https://juniper.example,hello@juniper.example,+15125550101,4.8,75,demo-import-1,,false
+Fern & Finch,Florist,24 Example Street,London,GB,Europe/London,,, ,4.7,43,demo-import-2,,false
