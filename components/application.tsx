@@ -74,6 +74,7 @@ import {
 import { Button } from "./ui/button";
 
 import { Dialog } from "./ui/dialog";
+import { NavigationShell } from "./navigation-shell";
 
 import { GooglePlacesSource } from "./google-places-source";
 import { AutomationPanel } from "./automation-panel";
@@ -233,26 +234,10 @@ function Stat({
         </span>
       </div>
 
-      <div className="stat-value">
-        {value}
-
-        <svg
-          className={"sparkline " + color}
-
-          viewBox="0 0 100 36"
-
-          aria-hidden="true"
-        >
-          <path d="M1 31L12 24L22 28L33 17L43 22L54 10L64 15L76 7L86 12L99 1" />
-        </svg>
-      </div>
+      <div className="stat-value">{value}</div>
 
       <div className="stat-detail">
-        <span className="trend">
-          <ArrowUpRight size={13} />
-
-          {detail}
-        </span>
+        <span className="trend">{detail}</span>
 
         <span>in your workspace</span>
       </div>
@@ -723,6 +708,7 @@ export function Application() {
     mode === "live" && remoteLeads ? remoteLeads.count : filtered.length;
 
   function openWebsite(status: string) {
+    setMobile(false);
     setWebsiteFilter(status);
 
     setPage(1);
@@ -819,8 +805,14 @@ export function Application() {
     ({ settings: "Settings", overview: "Overview" }[section] ?? "Overview");
 
   const leadsTable = (compact = false) => (
-    <div className="table-wrap">
-      <table>
+    <div
+      className="table-wrap"
+      role="region"
+      aria-label="Business leads"
+      tabIndex={0}
+    >
+      <table className="leads-table">
+        <caption className="sr-only">Businesses in your workspace</caption>
         <thead>
           <tr>
             <th className="checkcell">
@@ -898,7 +890,7 @@ export function Application() {
                 </div>
               </td>
 
-              <td>
+              <td data-label="Location">
                 <span className="location-cell">
                   {l.city}
 
@@ -912,7 +904,7 @@ export function Application() {
                 </span>
               </td>
 
-              <td>
+              <td data-label="Website">
                 <span className={"website-state " + l.website_status}>
                   {l.website_status === "found" ? (
                     <Globe size={13} />
@@ -929,7 +921,7 @@ export function Application() {
                 </span>
               </td>
 
-              <td>
+              <td data-label="Opportunity">
                 <span className="score">
                   <span
                     className={l.opportunity >= 85 ? "score-high" : "score-mid"}
@@ -941,7 +933,7 @@ export function Application() {
                 </span>
               </td>
 
-              <td>
+              <td data-label="Status">
                 <Badge
                   tone={
                     ["Qualified", "Approved", "Won"].includes(l.stage)
@@ -958,8 +950,12 @@ export function Application() {
               </td>
 
               {!compact && (
-                <td>
-                  <Avatar name={l.owner} index={i} small />
+                <td data-label="Owner">
+                  {l.owner ? (
+                    <Avatar name={l.owner} index={i} small />
+                  ) : (
+                    <span className="unassigned">Unassigned</span>
+                  )}
                 </td>
               )}
 
@@ -1025,7 +1021,10 @@ export function Application() {
 
   return (
     <div className="app-shell">
-      <aside className={"sidebar " + (mobile ? "sidebar-open" : "")}>
+      <a href="#main-content" className="skip-link">
+        Skip to main content
+      </a>
+      <NavigationShell open={mobile} onOpenChange={setMobile}>
         <Link className="brand" href="/" aria-label="Prospect home">
           <span className="brand-mark">
             <span />
@@ -1037,155 +1036,169 @@ export function Application() {
           prospect<span className="brand-dot">.</span>
         </Link>
 
-        <button className="workspace-switch" onClick={() => setModal("login")}>
-          <span className="workspace-icon">{initials(workspaceName)}</span>
-
-          <span>
-            <strong>{workspaceName}</strong>
-
-            <small>Team workspace</small>
-          </span>
-
-          <ChevronsUpDown size={14} />
-        </button>
-
-        <div className="nav-label">WORKSPACE</div>
-
-        <nav>
-          {nav.map((n) => (
-            <Link
-              key={n.path}
-
-              href={n.path}
-
-              onClick={() => {
-                setMobile(false);
-
-                setQuery("");
-              }}
-
-              className={
-                "nav-item " +
-                ((section === "overview" && n.path === "/") ||
-                pathname === n.path
-                  ? "active"
-                  : "")
-              }
-            >
-              <n.icon size={18} />
-
-              <span>{n.name}</span>
-
-              {n.name === "All leads" && (
-                <span className="nav-count">{totalLeads}</span>
-              )}
-
-              {n.name === "Tasks" && <span className="task-dot" />}
-            </Link>
-          ))}
-        </nav>
-
-        <div className="nav-label nav-label-second">
-          YOUR SEGMENTS{" "}
+        <div className="sidebar-scroll">
           <button
-            aria-label="Create saved segment"
-
+            className="workspace-switch"
             onClick={() => {
-              setSegmentName("New segment");
-
-              notify("Set filters in All leads, then save your segment.");
+              setMobile(false);
+              setModal("login");
             }}
           >
-            <Plus size={14} />
+            <span className="workspace-icon">{initials(workspaceName)}</span>
+
+            <span>
+              <strong>{workspaceName}</strong>
+
+              <small>Team workspace</small>
+            </span>
+
+            <ChevronsUpDown size={14} />
           </button>
-        </div>
 
-        <Link
-          href="/leads"
+          <div className="nav-label">WORKSPACE</div>
 
-          className="segment-link"
+          <nav aria-label="Main navigation">
+            {nav.map((n) => (
+              <Link
+                key={n.path}
+                aria-current={
+                  (section === "overview" && n.path === "/") ||
+                  pathname === n.path
+                    ? "page"
+                    : undefined
+                }
 
-          onClick={() => openWebsite("found")}
-        >
-          <span className="segment-dot green-dot" />
-          Website found<span>{found}</span>
-        </Link>
+                href={n.path}
 
-        <Link
-          href="/leads"
+                onClick={() => {
+                  setMobile(false);
 
-          className="segment-link"
+                  setQuery("");
+                }}
 
-          onClick={() => openWebsite("not_found")}
-        >
-          <span className="segment-dot orange-dot" />
-          No website found<span>{notFound}</span>
-        </Link>
+                className={
+                  "nav-item " +
+                  ((section === "overview" && n.path === "/") ||
+                  pathname === n.path
+                    ? "active"
+                    : "")
+                }
+              >
+                <n.icon size={18} />
 
-        <Link
-          href="/leads"
+                <span>{n.name}</span>
 
-          className="segment-link"
+                {n.name === "All leads" && (
+                  <span className="nav-count">{totalLeads}</span>
+                )}
 
-          onClick={() => openWebsite("unverified")}
-        >
-          <span className="segment-dot purple-dot" />
-          Needs verification<span>{unverified}</span>
-        </Link>
+                {n.name === "Tasks" && <span className="task-dot" />}
+              </Link>
+            ))}
+          </nav>
 
-        {segments.map((s) => (
+          <div className="nav-label nav-label-second">
+            YOUR SEGMENTS{" "}
+            <button
+              aria-label="Create saved segment"
+
+              onClick={() => {
+                setSegmentName("New segment");
+
+                notify("Set filters in All leads, then save your segment.");
+              }}
+            >
+              <Plus size={14} />
+            </button>
+          </div>
+
           <Link
             href="/leads"
 
             className="segment-link"
 
-            key={s.name}
-
-            onClick={() => {
-              setWebsiteFilter(s.website);
-
-              setStageFilter(s.stage);
-
-              setQuery(s.query);
-            }}
+            onClick={() => openWebsite("found")}
           >
-            <span className="segment-dot blue-dot" />
-
-            {s.name}
+            <span className="segment-dot green-dot" />
+            Website found<span>{found}</span>
           </Link>
-        ))}
 
+          <Link
+            href="/leads"
+
+            className="segment-link"
+
+            onClick={() => openWebsite("not_found")}
+          >
+            <span className="segment-dot orange-dot" />
+            No website found<span>{notFound}</span>
+          </Link>
+
+          <Link
+            href="/leads"
+
+            className="segment-link"
+
+            onClick={() => openWebsite("unverified")}
+          >
+            <span className="segment-dot purple-dot" />
+            Needs verification<span>{unverified}</span>
+          </Link>
+
+          {segments.map((s) => (
+            <Link
+              href="/leads"
+
+              className="segment-link"
+
+              key={s.name}
+
+              onClick={() => {
+                setMobile(false);
+                setWebsiteFilter(s.website);
+
+                setStageFilter(s.stage);
+
+                setQuery(s.query);
+              }}
+            >
+              <span className="segment-dot blue-dot" />
+
+              {s.name}
+            </Link>
+          ))}
+        </div>
         <div className="sidebar-bottom">
-          <div className="discovery-tip">
-            <div>
-              <Sparkles size={18} />
-
-              <strong>Your next customer is out there.</strong>
-            </div>
-
-            <p>Turn a little discovery into your next big opportunity.</p>
-
-            <Button onClick={() => setModal("discover")}>
-              Find new leads <ArrowUpRight size={14} />
-            </Button>
-          </div>
-
           <Link
             href="/settings"
 
+            onClick={() => setMobile(false)}
+            aria-current={section === "settings" ? "page" : undefined}
             className={"nav-item " + (section === "settings" ? "active" : "")}
           >
             <Settings size={18} />
             Settings
           </Link>
 
-          <button className="nav-item" onClick={() => setModal("help")}>
+          <button
+            className="nav-item"
+            onClick={() => {
+              setMobile(false);
+              setModal("help");
+            }}
+          >
             <HelpCircle size={18} />
             Help & resources
             <ArrowUpRight size={14} />
           </button>
 
-          <button className="profile" onClick={() => setModal("login")}>
+          <button
+            className="profile"
+            onClick={() => {
+              setMobile(false);
+              setModal("login");
+            }}
+          >
             <Avatar name={workspaceName} index={1} />
 
             <span>
@@ -1199,17 +1212,16 @@ export function Application() {
             <ChevronsUpDown size={14} />
           </button>
         </div>
-      </aside>
-
-      {mobile && (
-        <div className="mobile-scrim" onClick={() => setMobile(false)} />
-      )}
+      </NavigationShell>
 
       <div className="main-shell">
         <header className="topbar">
           <div className="breadcrumb">
             <button
+              id="navigation-trigger"
               className="mobile-menu icon-button"
+              aria-expanded={mobile}
+              aria-controls={mobile ? "mobile-navigation" : undefined}
 
               aria-label="Open navigation"
 
@@ -1234,14 +1246,14 @@ export function Application() {
 
                 aria-label="Search workspace leads"
 
-                placeholder="Search anything..."
+                placeholder="Search leads…"
 
                 value={query}
 
                 onChange={(e) => setQuery(e.target.value)}
               />
 
-              <kbd>⌘ K</kbd>
+              <kbd>Ctrl K</kbd>
             </div>
 
             <span className="top-divider" />
@@ -1262,13 +1274,13 @@ export function Application() {
           </div>
         </header>
 
-        <main className="main-content">
+        <main id="main-content" tabIndex={-1} className="main-content">
           <div className="page-heading">
             <div>
-              <div className="eyebrow">YOUR GROWTH, IN FOCUS</div>
+              <div className="eyebrow">{workspaceName} / WORKSPACE</div>
 
               <h1>
-                {section === "overview" ? "Good afternoon, Sam" : title}
+                {section === "overview" ? "Workspace overview" : title}
 
                 <span className="heading-dot">.</span>
               </h1>
@@ -1277,7 +1289,7 @@ export function Application() {
                 {section === "overview"
                   ? "Here’s what’s happening with your business today."
                   : section === "leads"
-                    ? "A little context. A lot of opportunity."
+                    ? "Find, review, and manage every business in your pipeline."
                     : section === "discovery"
                       ? "Find the right businesses. Start the right conversations."
                       : section === "pipeline"
@@ -1351,7 +1363,7 @@ export function Application() {
             <span>
               <span className="connection-dot" />
               <strong>{workspaceName}</strong>
-              <span> Connected to Supabase · {role}</span>
+              <span> Workspace connected · {role}</span>
             </span>
             <button
               onClick={() =>
@@ -1690,6 +1702,7 @@ export function Application() {
                   ].map((t) => (
                     <button
                       key={t.value}
+                      aria-pressed={websiteFilter === t.value}
 
                       className={websiteFilter === t.value ? "selected" : ""}
 
@@ -2149,7 +2162,12 @@ export function Application() {
                 <span>Change a stage on a card to move it forward.</span>
               </div>
 
-              <div className="kanban">
+              <div
+                className="kanban"
+                role="region"
+                aria-label="Sales pipeline, scroll horizontally for more stages"
+                tabIndex={0}
+              >
                 {stages.map((s, i) => (
                   <section className="kanban-column" key={s}>
                     <div className="kanban-heading">
