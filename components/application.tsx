@@ -77,6 +77,16 @@ import { Dialog } from "./ui/dialog";
 import { NavigationShell } from "./navigation-shell";
 
 import { GooglePlacesSource } from "./google-places-source";
+import {
+  DiscoveryRunOptions,
+  DiscoverySettingsPanel,
+  searchSettingsFromForm,
+} from "./discovery-options";
+import {
+  defaultDiscoverySettings,
+  discoverySettingsSchema,
+  type DiscoverySettings,
+} from "@/lib/discovery-settings";
 import { AutomationPanel } from "./automation-panel";
 import { BusinessProfileLink } from "./business-profile-link";
 
@@ -271,6 +281,9 @@ export function Application() {
   });
 
   const [workspaceName, setWorkspaceName] = useState("");
+  const [discoverySettings, setDiscoverySettings] = useState<DiscoverySettings>(
+    defaultDiscoverySettings,
+  );
 
   const [role, setRole] = useState("");
   const [liveMetrics, setLiveMetrics] = useState<Record<string, number>>({});
@@ -382,6 +395,7 @@ export function Application() {
     setState(empty);
     setWorkspace("");
     setWorkspaceName("");
+    setDiscoverySettings(defaultDiscoverySettings);
     setRole("");
     setLiveMetrics({});
     setRemoteLeads(null);
@@ -414,6 +428,9 @@ export function Application() {
         );
       setWorkspace(data.workspace.id);
       setWorkspaceName(data.workspace.name);
+      setDiscoverySettings(
+        discoverySettingsSchema.parse(data.workspace.discovery_settings || {}),
+      );
       if (data.workspace.score_weights)
         setScoreWeights(data.workspace.score_weights);
       setRole(data.role);
@@ -1376,6 +1393,7 @@ export function Application() {
 
           {section === "automation" && (
             <AutomationPanel
+              discoverySettings={discoverySettings}
               workspace={workspace}
               live={mode === "live"}
               role={role}
@@ -2092,7 +2110,17 @@ export function Application() {
                         {d.status === "Completed"
                           ? "Search complete"
                           : `${d.progress}% processed`}{" "}
-                        · Up to {d.limit} results · Coverage varies by source
+                        · Up to {d.limit} new leads
+                        {d.search_settings && (
+                          <>
+                            {" "}
+                            · {d.saved_count || 0} saved ·{" "}
+                            {d.scanned_count || 0} considered ·{" "}
+                            {d.matched_count || 0} matched ·{" "}
+                            {d.api_requests || 0} requests
+                          </>
+                        )}
+                        {d.budget_exhausted && " · Request limit reached"}
                       </small>
                     </div>
 
@@ -2109,7 +2137,11 @@ export function Application() {
                         {d.status}
                       </Badge>
 
-                      <span>{money(d.estimated_cost || 0)} estimated</span>
+                      <span>
+                        {d.search_settings
+                          ? `${d.search_settings.target.replaceAll("_", " ")} · ${d.search_settings.website.replaceAll("_", " ")}`
+                          : `${money(d.estimated_cost || 0)} estimated`}
+                      </span>
 
                       {!["Completed", "Cancelled", "Failed"].includes(
                         d.status,
@@ -2512,6 +2544,14 @@ export function Application() {
 
           {section === "settings" && (
             <div className="settings-layout">
+              <DiscoverySettingsPanel
+                saved={discoverySettings}
+                role={role}
+                busy={busy}
+                onSave={(settings) =>
+                  mutate("configure_discovery", { settings })
+                }
+              />
               <section className="card settings-card">
                 <h2>Workspace & connections</h2>
 
@@ -2741,7 +2781,9 @@ export function Application() {
                 : "Everything you need to take your next step."
         }
 
-        wide={modal === "campaign" || modal === "import"}
+        wide={
+          modal === "campaign" || modal === "import" || modal === "discover"
+        }
       >
         {modal === "discover" && (
           <form
@@ -2768,7 +2810,8 @@ export function Application() {
 
                 limit: Number(f.get("limit")),
 
-                radius: 25,
+                radius: searchSettingsFromForm(f).radius_km,
+                search_settings: searchSettingsFromForm(f),
 
                 exclusions: String(f.get("exclusions"))
                   .split(",")
@@ -2779,7 +2822,7 @@ export function Application() {
 
                 schedule: String(f.get("schedule")),
 
-                estimated_cost: Number(f.get("limit")) * 0.01,
+                estimated_cost: 0,
 
                 provider: discoveryProvider,
               };
@@ -2798,6 +2841,7 @@ export function Application() {
               Business niche or keyword
               <input
                 name="keyword"
+                defaultValue={discoverySettings.default_keyword}
 
                 required
 
@@ -2808,10 +2852,12 @@ export function Application() {
             <label>
               Locations{" "}
               <small>
-                One location per line · city, region, country or continent
+                One location per line · use specific cities, neighborhoods, or
+                addresses
               </small>
               <textarea
                 name="locations"
+                defaultValue={discoverySettings.default_locations.join("\n")}
 
                 required
 
@@ -2835,7 +2881,7 @@ export function Application() {
 
                   max="500"
 
-                  defaultValue="50"
+                  defaultValue={discoverySettings.default_limit}
                 />
               </label>
             </div>
@@ -2844,11 +2890,13 @@ export function Application() {
               Exclude names or domains
               <input
                 name="exclusions"
+                defaultValue={discoverySettings.exclusions.join(", ")}
 
                 placeholder="Separate exclusions with commas"
               />
             </label>
 
+            <DiscoveryRunOptions defaults={discoverySettings} />
             <label>
               Run schedule
               <select name="schedule">
@@ -2865,8 +2913,8 @@ export function Application() {
 
               <span>
                 Google Places costs depend on your account and selected fields.
-                Search uses business type and location text; radius is not
-                enforced by this adapter.
+                Local area scans broaden coverage beyond Google’s top relevance
+                results. Filters may return fewer leads than your limit.
               </span>
             </div>
 

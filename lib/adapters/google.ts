@@ -1,5 +1,6 @@
 import { importRecord } from "../import";
 import type { DiscoveryAdapter, SearchRequest } from "./discovery";
+import { discoverGoogleAreas } from "./google-area";
 
 export function googleReady() {
   return !!process.env.GOOGLE_PLACES_API_KEY?.trim();
@@ -7,8 +8,9 @@ export function googleReady() {
 export class GooglePlacesDiscovery implements DiscoveryAdapter {
   name = "Google Places";
   canPersist = true;
-  async discover(request: SearchRequest) {
+  async discover(request: SearchRequest): ReturnType<DiscoveryAdapter["discover"]> {
     if (!googleReady()) throw Error("Setup required: Google Places API key");
+    if (request.search_settings) return discoverGoogleAreas(request);
     let cursor: { location: number; token?: string } = { location: 0 };
     if (request.cursor) {
       cursor = JSON.parse(

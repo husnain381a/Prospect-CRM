@@ -1,6 +1,11 @@
 "use client";
 import { useCallback, useEffect, useState } from "react";
 import { GooglePlacesSource } from "./google-places-source";
+import {
+  DiscoveryRunOptions,
+  searchSettingsFromForm,
+} from "./discovery-options";
+import type { DiscoverySettings } from "@/lib/discovery-settings";
 import { Button } from "./ui/button";
 import type { Campaign, Lead, Recipient } from "@/lib/types";
 type Template = {
@@ -11,6 +16,7 @@ type Template = {
   components: { type: string; text?: string }[];
 };
 type Props = {
+  discoverySettings: DiscoverySettings;
   workspace: string;
   live: boolean;
   role: string;
@@ -19,6 +25,7 @@ type Props = {
   refresh: () => Promise<void>;
 };
 export function AutomationPanel({
+  discoverySettings,
   workspace,
   live,
   role,
@@ -254,7 +261,8 @@ export function AutomationPanel({
                     limit: Number(d.get("limit")),
                     schedule: d.get("schedule"),
                     auto_enrich: d.get("auto_enrich") === "on",
-                    radius: 25,
+                    radius: searchSettingsFromForm(d).radius_km,
+                    search_settings: searchSettingsFromForm(d),
                     exclusions: [],
                     estimated_cost: Number(d.get("estimated_cost")),
                   }),
@@ -276,6 +284,7 @@ export function AutomationPanel({
               Business type
               <input
                 name="keyword"
+                defaultValue={discoverySettings.default_keyword}
                 placeholder="e.g. dental clinics"
                 required
                 maxLength={200}
@@ -285,6 +294,7 @@ export function AutomationPanel({
               Locations, one per line
               <textarea
                 name="locations"
+                defaultValue={discoverySettings.default_locations.join("\n")}
                 placeholder={"Lahore, Pakistan\nKarachi, Pakistan"}
                 required
                 rows={3}
@@ -298,7 +308,7 @@ export function AutomationPanel({
                   type="number"
                   min={1}
                   max={500}
-                  defaultValue={50}
+                  defaultValue={discoverySettings.default_limit}
                   required
                 />
               </label>
@@ -311,14 +321,15 @@ export function AutomationPanel({
                 </select>
               </label>
             </div>
+            <DiscoveryRunOptions defaults={discoverySettings} />
             <label>
-              Estimated search budget (USD)
+              Estimated search cost for your records (USD)
               <input
                 name="estimated_cost"
                 type="number"
                 min={0}
                 step="0.01"
-                defaultValue={1}
+                defaultValue={0}
                 required
               />
             </label>

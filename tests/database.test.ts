@@ -1,5 +1,8 @@
 import { beforeAll, afterAll, describe, it, expect, vi } from "vitest";
 import { channelEvent } from "../lib/channel-events";
+import { runConfiguredDiscovery } from "../lib/discovery-worker";
+import { defaultDiscoverySettings } from "../lib/discovery-settings";
+import { importRecord } from "../lib/import";
 
 import { PGlite } from "@electric-sql/pglite";
 
@@ -202,6 +205,30 @@ beforeAll(async () => {
 
   await asUser(userA);
 
+  await db.exec("reset role");
+  await db
+    .exec(
+      await readFile(
+        new URL(
+          "../supabase/migrations/20261028174727_discovery_search_settings.sql",
+          import.meta.url,
+        ),
+        "utf8",
+      ),
+    )
+    .catch((error) => {
+      throw new Error(
+        JSON.stringify({
+          message: error.message,
+          position: error.position,
+          where: error.where,
+          internalQuery: error.internalQuery,
+          internalPosition: error.internalPosition,
+        }),
+      );
+    });
+  await asUser(userA);
+
   leadA = (
     await rpc("select import_lead($1,$2::jsonb) as id", [
       workspaceA,
@@ -373,6 +400,172 @@ describe("actual PostgreSQL RLS and security-definer boundaries", () => {
     ).rejects.toThrow("Forbidden");
     await asUser(manager);
     await rpc("select set_discovery_provider($1,'google')", [workspaceA]);
+  });
+  it("persists discovery defaults, rejects unsafe settings and snapshots each run", async () => {
+    await asUser(userA);
+    const settings = {
+      ...defaultDiscoverySettings,
+      target: "low_reviews",
+      website: "not_listed",
+      max_requests: 4,
+    };
+    await rpc("select configure_discovery($1,$2::jsonb)", [
+      workspaceA,
+      JSON.stringify(settings),
+    ]);
+    expect(
+      (
+        await rpc("select discovery_settings from workspaces where id=$1", [
+          workspaceA,
+        ])
+      )[0].discovery_settings,
+    ).toEqual(settings);
+    const config = {
+      name: "Low review search",
+      keyword: "dentists",
+      locations: ["Lahore"],
+      limit: 3,
+      provider: "google",
+      schedule: "once",
+    };
+    const id = (
+      await rpc("select create_discovery($1,$2::jsonb) id", [
+        workspaceA,
+        JSON.stringify(config),
+      ])
+    )[0].id;
+    await rpc("select configure_discovery($1,$2::jsonb)", [
+      workspaceA,
+      JSON.stringify(defaultDiscoverySettings),
+    ]);
+    expect(
+      (
+        await rpc(
+          "select data->'search_settings' settings from discoveries where id=$1",
+          [id],
+        )
+      )[0].settings,
+    ).toEqual(settings);
+    for (const invalid of [
+      { max_requests: 1000 },
+      { include_unreviewed: "true" },
+      { min_reviews: 80, max_reviews: 5 },
+      { target: "whatever" },
+      { low_review_max: 100, mid_review_max: 20 },
+      { exclusions: [""] },
+    ]) {
+      await expect(
+        rpc("select configure_discovery($1,$2::jsonb)", [
+          workspaceA,
+          JSON.stringify(invalid),
+        ]),
+      ).rejects.toThrow();
+    }
+    await asUser(agent);
+    await expect(
+      rpc("select configure_discovery($1,'{}'::jsonb)", [workspaceA]),
+    ).rejects.toThrow("Forbidden");
+    await asUser(userB);
+    await expect(
+      rpc("select configure_discovery($1,'{}'::jsonb)", [workspaceA]),
+    ).rejects.toThrow("Forbidden");
+    await expect(
+      rpc("select create_discovery($1,$2::jsonb)", [
+        workspaceA,
+        JSON.stringify(config),
+      ]),
+    ).rejects.toThrow("Forbidden");
+    await asUser(manager);
+    await rpc("select configure_discovery($1,'{}'::jsonb)", [workspaceA]);
+  });
+  it("scans before balancing and only counts actual newly saved leads", async () => {
+    await asUser(userA);
+    const config = {
+      name: "Worker mix test",
+      keyword: "cafes",
+      locations: ["Lahore"],
+      limit: 3,
+      provider: "google",
+      schedule: "daily",
+      search_settings: { ...defaultDiscoverySettings, max_requests: 2 },
+    };
+    const id = (
+      await rpc("select create_discovery($1,$2::jsonb) id", [
+        workspaceA,
+        JSON.stringify(config),
+      ])
+    )[0].id;
+    const make = (name: string, reviews: number) =>
+      importRecord(
+        {
+          name,
+          reviews,
+          source_id: "mix-" + name,
+          website: "",
+          address: name + " Street",
+          country: "PK",
+        },
+        "Google Places",
+      );
+    const known = make("Existing business", 1),
+      low = make("New prospect", 0),
+      mid = make("Medium prospect", 50),
+      high = make("High prospect", 900);
+    await rpc("select import_lead($1,$2::jsonb)", [
+      workspaceA,
+      JSON.stringify(known),
+    ]);
+    await db.exec("reset role");
+    const job = (
+      await rpc(
+        "update jobs set status='running',locked_by='test-worker',locked_at=now() where payload->>'discovery_id'=$1 returning *",
+        [id],
+      )
+    )[0];
+    const discover = vi
+      .fn()
+      .mockResolvedValueOnce({
+        records: [known, mid, high],
+        nextCursor: "next",
+        cost: 0,
+        requestsUsed: 1,
+        coverage: "test",
+      })
+      .mockResolvedValueOnce({
+        records: [low, high],
+        cost: 0,
+        requestsUsed: 1,
+        coverage: "test",
+      });
+    await runConfiguredDiscovery(
+      sql,
+      job,
+      "test-worker",
+      { name: "mock", canPersist: true, discover },
+      { ...config, id },
+    );
+    expect(discover).toHaveBeenCalledTimes(2);
+    const record = (
+      await rpc("select status,progress,data from discoveries where id=$1", [
+        id,
+      ])
+    )[0];
+    expect(record.status).toBe("Completed");
+    expect(record.data.saved_count).toBe(3);
+    expect(record.data.review_mix).toEqual({ low: 1, medium: 1, high: 1 });
+    expect(record.data.api_requests).toBe(2);
+    expect(
+      (await rpc("select status,checkpoint from jobs where id=$1", [job.id]))[0]
+        .checkpoint.count,
+    ).toBe(3);
+    expect(
+      (
+        await rpc("select count(*)::int n from jobs where unique_key=$1", [
+          "scheduled:" + id + ":" + job.id,
+        ])
+      )[0].n,
+    ).toBe(1);
+    await asUser(userA);
   });
   it("hides tenant A rows from tenant B and blocks cross-tenant updates", async () => {
     await asUser(userB);

@@ -1,4 +1,80 @@
 @import "tailwindcss";
+.discovery-settings-card {
+  grid-column: 1 / -1;
+}
+.discovery-settings-card form {
+  margin-top: 24px;
+}
+.discovery-settings-card input:not([type="checkbox"]),
+.discovery-settings-card textarea,
+.discovery-settings-card select,
+.discovery-options input:not([type="checkbox"]),
+.discovery-options select {
+  width: 100%;
+  min-width: 0;
+  min-height: 44px;
+  border: 1px solid #bdc5d4;
+  border-radius: 8px;
+  padding: 10px 12px;
+  background: white;
+  color: var(--foreground);
+  font-size: 0.9375rem;
+}
+.discovery-options {
+  border: 1px solid var(--border);
+  border-radius: 10px;
+  padding: 20px;
+  margin: 20px 0;
+  min-width: 0;
+}
+.discovery-options legend {
+  font-size: 1rem;
+  font-weight: 600;
+  color: var(--foreground);
+  padding: 0 6px;
+}
+.discovery-presets {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-bottom: 20px;
+}
+.discovery-options .discovery-presets .button {
+  white-space: normal;
+  text-align: left;
+}
+.discovery-advanced {
+  margin-top: 16px;
+  border-top: 1px solid var(--border);
+  padding-top: 16px;
+}
+.discovery-advanced summary {
+  cursor: pointer;
+  color: var(--primary);
+  font-weight: 600;
+  min-height: 40px;
+}
+.discovery-advanced[open] summary {
+  margin-bottom: 16px;
+}
+.discovery-feedback {
+  margin-top: 16px;
+  padding: 12px;
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  color: var(--foreground);
+}
+@media (max-width: 767px) {
+  .discovery-options {
+    padding: 16px;
+  }
+  .discovery-options input:not([type="checkbox"]),
+  .discovery-options select,
+  .discovery-settings-card input:not([type="checkbox"]),
+  .discovery-settings-card textarea {
+    font-size: 1rem;
+  }
+}
 .automation-panel {
   display: grid;
   gap: 20px;

@@ -74,6 +74,18 @@ In a lead profile, a Manager/Admin records permission and jurisdiction decisions
 
 The first version uses a conservative per-contact jurisdiction-reviewed flag, rather than an automated legal rules engine. The operator must supply applicable review decisions. Unresolved reviews block every outreach channel. This does not certify legal compliance.
 
+## Discovery targeting and saved defaults
+
+In **Settings → Discovery search defaults**, admins and managers can save a business keyword, locations, lead limit, exclusions, review bands/ranges, website preference, and coverage settings. New searches in Discover and Automation start with those defaults and allow per-run overrides. Each search snapshots its settings; subsequent edits do not change an existing scheduled search.
+
+The default local area scan resolves each location through Google Places, then runs distance-ranked text searches across 1, 5, or 9 local areas. It checks the selected radius against returned coordinates and scans a bounded candidate pool before selecting leads. Mixed mode takes turns across low (0–20), medium (21–100), and high (101+) review counts; the thresholds are editable. Existing CRM duplicates are removed before balancing and do not consume the new-lead limit. Filters can yield fewer leads than requested. Standard Google relevance search remains available.
+
+Use **Fewer reviews · no website listed** to find less-reviewed businesses without a published Google website field. These are prospecting signals, not verified business size, opening dates, or proof that a website does not exist. Google returns ranked, limited samples; the app cannot promise complete or unbiased coverage. Location resolution, area searches, and pagination all use the per-run request allowance (default 30, maximum 100). Retries after failures can generate additional billable provider requests. No exact dollar cap is enforced; account pricing determines charges.
+
+Deploy both the Vercel app and **Coolify's Dockerfile.worker** after updating. Apply `20261028174727_discovery_search_settings.sql` before using the new controls; it has already been applied to Comova / lead gen and its permissions verified. Existing searches without a settings snapshot use the legacy adapter, while all newly created searches snapshot the workspace defaults.
+
+The targeting update passed 68 automated tests, the production build, and HTTP route checks. A bounded two-request live Lahore check returned 20 businesses (10 low-, 5 medium-, 5 high-review); 13 had no website listed. This was an adapter verification, not an outreach run or a complete city survey.
+
 ## Tests and verification
 
 ```sh

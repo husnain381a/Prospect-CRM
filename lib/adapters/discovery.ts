@@ -1,5 +1,6 @@
 import { z } from "zod";
 import { importRecord, importSchema } from "../import";
+import type { DiscoverySettings } from "../discovery-settings";
 export type SearchRequest = {
   keyword: string;
   locations: string[];
@@ -7,6 +8,7 @@ export type SearchRequest = {
   limit: number;
   exclusions: string[];
   cursor?: string;
+  search_settings?: DiscoverySettings;
 };
 export interface DiscoveryAdapter {
   name: string;
@@ -16,6 +18,8 @@ export interface DiscoveryAdapter {
     nextCursor?: string;
     cost: number;
     coverage: string;
+    requestsUsed?: number;
+    budgetExhausted?: boolean;
   }>;
 }
 export class SetupRequired extends Error {}

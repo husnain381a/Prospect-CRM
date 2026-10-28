@@ -8,6 +8,7 @@ import {
   RetryableProviderError,
 } from "../lib/adapters/email";
 import { GooglePlacesDiscovery } from "../lib/adapters/google";
+import { runConfiguredDiscovery } from "../lib/discovery-worker";
 import {
   channelEnabled,
   requireChannel,
@@ -213,6 +214,11 @@ async function processDiscovery(job: Job) {
     throw Error(
       "Unsupported discovery provider; create a new Google Places search",
     );
+  if (config.search_settings)
+    return runConfiguredDiscovery(db, job, workerId, adapter, {
+      ...config,
+      id,
+    });
   let cursor = job.checkpoint.cursor as string | undefined;
   let count = Number(job.checkpoint.count) || 0;
   let cost = Number(job.checkpoint.cost) || 0;
@@ -269,11 +275,11 @@ async function processDiscovery(job: Job) {
             .includes(v.toLowerCase()),
         );
         if (excluded) continue;
-        count++;
         if (existing.some((row) => duplicate(row.data, lead as any))) continue;
         const [inserted] =
           await tx`insert into leads(workspace_id,data) values(${job.workspace_id},${tx.json(lead)}) on conflict do nothing returning id`;
         if (inserted) {
+          count++;
           existing.push({ id: inserted.id, data: lead });
           if (config.auto_enrich === true && lead.website)
             await tx`insert into jobs(workspace_id,kind,payload,unique_key) values(${job.workspace_id},'enrichment',${tx.json({ lead_id: inserted.id, crawl_permission: true })},${"auto-enrich:" + inserted.id}) on conflict do nothing`;

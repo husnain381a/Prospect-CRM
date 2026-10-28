@@ -85,6 +85,12 @@ export type Discovery = {
   radius?: number;
   estimated_cost?: number;
   schedule?: string;
+  search_settings?: import("./discovery-settings").DiscoverySettings;
+  saved_count?: number;
+  scanned_count?: number;
+  matched_count?: number;
+  api_requests?: number;
+  budget_exhausted?: boolean;
 };
 export type Recipient = {
   lead_id: string;

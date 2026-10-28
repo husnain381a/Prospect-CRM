@@ -4,6 +4,7 @@ import { AccessError } from "@/lib/supabase/access";
 import { importRecord } from "@/lib/import";
 import { unsubscribeToken } from "@/lib/unsubscribe";
 import { googleReady } from "@/lib/adapters/google";
+import { discoverySettingsSchema } from "@/lib/discovery-settings";
 import { requestOriginAllowed } from "@/lib/request-origin";
 import {
   requireChannel,
@@ -190,6 +191,7 @@ export async function POST(request: Request) {
             estimated_cost: z.number().min(0),
             provider: z.literal("google").default("google"),
             auto_enrich: z.boolean().default(false),
+            search_settings: discoverySettingsSchema.optional(),
           })
           .parse(p);
         if (d.provider === "google" && !googleReady())
@@ -201,6 +203,12 @@ export async function POST(request: Request) {
         result = await rpc("set_discovery_provider", {
           w,
           provider: z.literal("google").parse(p.provider),
+        });
+        break;
+      case "configure_discovery":
+        result = await rpc("configure_discovery", {
+          w,
+          settings: discoverySettingsSchema.parse(p.settings),
         });
         break;
       case "cancel_discovery":
